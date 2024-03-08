@@ -7,13 +7,14 @@ pub enum Platforms {
 }
 
 pub struct GameData {
-    name: String,
-    available_platforms: Vec<Platforms>,
+    pub name: String,
+    pub available_platforms: Vec<Platforms>,
+    pub is_installed: bool,
 }
 
 pub trait Game {
-    fn download_game(&self, download_location: PathBuf) -> Result<(), String>;
-    fn install_game(&self, install_location: PathBuf) -> Result<(), String>;
-    fn update_game(&self, installed_game_location: PathBuf) -> Result<(), String>;
+    fn download_game(&self, download_location: PathBuf, install_location: PathBuf) -> Result<(), String>;
+    fn update_game(&self, download_location: PathBuf, install_location: PathBuf) -> Result<(), String>;
+    fn login_to_game(&self, username: String, password: String) -> Result<(), String>;
     fn launch_game(&self) -> Result<(), String>;
 }
