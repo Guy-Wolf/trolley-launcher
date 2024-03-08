@@ -1,4 +1,4 @@
-use super::game::{Game, GameData};
+use super::game::{Game, GameData, Platforms};
 use std::path::PathBuf;
 
 const INSTALLER_PATH: &str =
@@ -10,16 +10,30 @@ pub struct TTCC {
     args: Vec<String>,
 }
 
+impl TTCC {
+    pub fn new(installer_path: PathBuf, args: Vec<String>) -> Self {
+        Self {
+            game_data: GameData {
+                name: "Toontown Corporate Clash".to_string(),
+                available_platforms: vec![Platforms::Windows, Platforms::Mac],
+                is_installed: false,
+            },
+            installer_path,
+            args,
+        }
+    }
+}
+
 impl Game for TTCC {
-    fn download_game(&self, download_location: PathBuf) -> Result<(), String> {
+    fn download_game(&self, download_location: PathBuf, install_location: PathBuf) -> Result<(), String> {
         todo!()
     }
 
-    fn install_game(&self, install_location: PathBuf) -> Result<(), String> {
+    fn update_game(&self, download_location: PathBuf, install_location: PathBuf) -> Result<(), String> {
         todo!()
     }
 
-    fn update_game(&self, installed_game_location: PathBuf) -> Result<(), String> {
+    fn login_to_game(&self, username: String, password: String) -> Result<(), String> {
         todo!()
     }
 
