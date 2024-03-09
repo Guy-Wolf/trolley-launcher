@@ -6,7 +6,9 @@ use reqwest::{
 };
 use serde_json::{json, Value};
 use std::fs;
+use std::io::stdin;
 use std::path::PathBuf;
+use std::process::Command;
 
 const MANIFEST_PATH: &str = "https://cdn.toontownrewritten.com/content/patchmanifest.txt";
 const CDN_PATH: &str = "https://download.toontownrewritten.com/patches/";
@@ -28,25 +30,7 @@ impl TTR {
             args,
         }
     }
-}
-
-impl Game for TTR {
-    fn download_game(
-        &self,
-        download_location: PathBuf,
-        install_location: PathBuf,
-    ) -> Result<(), String> {
-        update_or_download_gamefiles(download_location, install_location)
-    }
-    fn update_game(
-        &self,
-        download_location: PathBuf,
-        install_location: PathBuf,
-    ) -> Result<(), String> {
-        update_or_download_gamefiles(download_location, install_location)
-    }
-
-    fn login_to_game(&self, username: String, password: String) -> Result<(), String> {
+    fn login_to_game(&self, username: String, password: String) -> Result<Value, String> {
         let client = Client::new();
         let credentials = vec![("username", username), ("password", password)];
         let mut headers = HeaderMap::new();
@@ -56,7 +40,7 @@ impl Game for TTR {
         );
         let response = client
             .post(LOGIN_PATH)
-            .headers(headers)
+            .headers(headers.clone())
             .form(&credentials)
             .send()
             .unwrap()
@@ -65,16 +49,55 @@ impl Game for TTR {
         let response_json: Value = serde_json::from_str(&response).unwrap();
         println!("{:?}", response_json.to_string());
         match response_json["success"].as_str().unwrap() {
-            "true" => Ok(()),
+            "true" => Ok(response_json),
             "false" => Err(response_json["banner"].to_string()),
-            "partial" => Err(response_json["banner"].to_string()),
+            "partial" => handle_tfa(
+                response_json["responseToken"].to_string(),
+                client,
+                headers,
+                &credentials,
+            ),
             "delayed" => Err("Delayed login".to_string()),
             _ => Err("Unknown error".to_string()),
         }
     }
+}
 
-    fn launch_game(&self) -> Result<(), String> {
-        todo!()
+impl Game for TTR {
+    fn download_game(
+        &mut self,
+        download_location: PathBuf,
+        install_location: PathBuf,
+    ) -> Result<(), String> {
+        update_or_download_gamefiles(download_location, install_location)?;
+        self.game_data.is_installed = true;
+        Ok(())
+    }
+    fn update_game(
+        &self,
+        download_location: PathBuf,
+        install_location: PathBuf,
+    ) -> Result<(), String> {
+        update_or_download_gamefiles(download_location, install_location)
+    }
+
+    fn launch_game(
+        &self,
+        username: String,
+        password: String,
+        install_location: PathBuf,
+    ) -> Result<(), String> {
+        let login_token = self.login_to_game(username, password)?;
+        let mut command = Command::new(install_location.join("TTREngine64.exe"));
+        let cookie_parameter = login_token["cookie"].to_string().replace("\"", "");
+        let gameserver_parameter = login_token["gameserver"].to_string().replace("\"", "");
+        command
+            .env("TTR_PLAYCOOKIE", &cookie_parameter)
+            .env("TTR_GAMESERVER", &gameserver_parameter)
+            .current_dir(install_location)
+            .output()
+            .unwrap();
+        Ok(())
     }
 }
 
@@ -103,4 +126,34 @@ fn update_or_download_gamefiles(
         fs::remove_file(bz2_path).unwrap();
     }
     Ok(())
+}
+
+fn handle_tfa(
+    response_token: String,
+    client: Client,
+    headers: HeaderMap,
+    credentials: &Vec<(&str, String)>,
+) -> Result<Value, String> {
+    let mut tfa_token = String::new();
+    println!("Additional authentication needed. Enter your 2FA token: ");
+    stdin().read_line(&mut tfa_token).unwrap();
+    let response = client
+        .post(LOGIN_PATH)
+        .headers(headers.clone())
+        .form(&credentials)
+        .send()
+        .unwrap()
+        .text()
+        .unwrap();
+    let response_json: Value = serde_json::from_str(&response).unwrap();
+    match response_json["success"].as_str().unwrap() {
+        "true" => Ok(response_json),
+        "false" => Err(response_json["banner"].to_string()),
+        "partial" => {
+            println!("Incorrect token, try again.");
+            handle_tfa(response_token, client, headers, credentials)
+        }
+        "delayed" => Err("Delayed login".to_string()),
+        _ => Err("Unknown error".to_string()),
+    }
 }
