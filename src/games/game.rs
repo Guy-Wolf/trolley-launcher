@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use serde_json::Value;
+
 pub enum Platforms {
     Windows,
     Mac,
@@ -13,8 +15,7 @@ pub struct GameData {
 }
 
 pub trait Game {
-    fn download_game(&self, download_location: PathBuf, install_location: PathBuf) -> Result<(), String>;
+    fn download_game(&mut self, download_location: PathBuf, install_location: PathBuf) -> Result<(), String>;
     fn update_game(&self, download_location: PathBuf, install_location: PathBuf) -> Result<(), String>;
-    fn login_to_game(&self, username: String, password: String) -> Result<(), String>;
-    fn launch_game(&self) -> Result<(), String>;
+    fn launch_game(&self, username: String, password: String, install_location: PathBuf) -> Result<(), String>;
 }
